@@ -1,0 +1,23 @@
+C:\Users\TOSHIBA\Documents\SPYDERI\Traceur
+
+  streamlit run "C:\Users\TOSHIBA\Documents\SPYDERI\Traceur\app.py"
+
+      streamlit run "C:\Users\TOSHIBA\Desktop\IDE\traceur.py"
+
+streamlit run "C:\Users\TOSHIBA\Desktop\LA_Crime_Prediction_MLP\app.py"
+
+zzzzzzzzzzzzzzzzzzzzzzzzzz
+Tapez : cd C:\Users\TOSHIBA\Desktop\IDE (ou le dossier où est votre fichier).
+
+Tapez : streamlit run traceur.py.
+
+streamlit run t_ra_1.py
+streamlit run t_ra_3.py
+
+https://demo-ai-assistant.streamlit.app/?ref=streamlit-io-gallery-llms
+
+https://streamlit.io/gallery
+
+https://share.streamlit.io/
+
+mon_modele_mlp.h5

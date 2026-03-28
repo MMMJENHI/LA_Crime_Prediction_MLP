@@ -1,0 +1,8 @@
+%%writefile requirements.txt
+pandas
+numpy
+tensorflow
+scikit-learn
+joblib
+streamlit
+ipywidgets
