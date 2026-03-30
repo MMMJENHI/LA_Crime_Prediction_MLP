@@ -2,7 +2,9 @@
 
 # 🛡️ Analyseur de Risques - Los Angeles
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://REMPLACE_PAR_TON_URL_ICI.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://la-crime-prediction.streamlit.app/)
+
+
 
 
 
