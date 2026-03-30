@@ -22,7 +22,10 @@ def load_all_assets():
     
     try:
         # Chargement du modèle (sans compiler pour éviter les erreurs de version)
-        model = tf.keras.models.load_model('mon_modele_mlp.h5', compile=False)
+        # Par :
+        import tf_keras
+        model = tf_keras.models.load_model('mon_modele_mlp.h5', compile=False)
+        
         # Chargement du scaler et des colonnes
         scaler = joblib.load('scaler.pkl')
         model_columns = joblib.load('model_columns.pkl')
