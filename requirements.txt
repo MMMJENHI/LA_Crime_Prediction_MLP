@@ -1,6 +1,7 @@
 streamlit
 pandas
-numpy
+numpy<2.0.0
 tensorflow-cpu==2.15.0
-scikit-learn==1.4.0
+tf_keras
+scikit-learn
 joblib
