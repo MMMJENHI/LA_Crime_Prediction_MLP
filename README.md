@@ -1,6 +1,10 @@
 # 🛡️ Analyseur de Risques Criminels - Los Angeles
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://la-crime-prediction-mmmjenhi.streamlit.app/)
+# 🛡️ Analyseur de Risques - Los Angeles
+
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://REMPLACE_PAR_TON_URL_ICI.streamlit.app/)
+
+
 
 ## 📋 Présentation du Projet
 Ce projet est un **Système Expert de Prédiction de la Criminalité**. Il permet d'estimer les risques et les types de délits probables dans les quartiers de Los Angeles à partir de données historiques du LAPD. L'application utilise l'**Intelligence Artificielle (Deep Learning)** pour identifier des patterns spatio-temporels et fournir une aide à la décision pour la sécurité urbaine.
