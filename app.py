@@ -4,89 +4,93 @@ import numpy as np
 import joblib
 import os
 
-# --- 1. CONFIGURATION ---
+# --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="LA Crime Predictor", page_icon="🛡️")
 
-# Importation sécurisée de TensorFlow
+# --- 2. GESTION DE L'IMPORT TENSORFLOW ---
 try:
     import tensorflow as tf
     TF_AVAILABLE = True
 except ImportError:
     TF_AVAILABLE = False
 
-# --- 2. CHARGEMENT DES FICHIERS ---
+# --- 3. CHARGEMENT SÉCURISÉ DES ASSETS ---
 @st.cache_resource
 def load_all_assets():
     if not TF_AVAILABLE:
-        return None, None, None, "TensorFlow n'est pas installé."
+        return None, None, None, "TensorFlow n'est pas installé dans l'environnement."
+    
     try:
-        # LE SECRET : compile=False pour éviter les conflits de versions
+        # CHARGEMENT DU MODÈLE (compile=False pour la compatibilité)
         model = tf.keras.models.load_model('mon_modele_mlp.h5', compile=False)
+        
+        # CHARGEMENT DU SCALER ET DES COLONNES
         scaler = joblib.load('scaler.pkl')
         model_columns = joblib.load('model_columns.pkl')
+        
         return model, scaler, model_columns, None
     except Exception as e:
         return None, None, None, str(e)
 
+# Exécution du chargement
 model, scaler, model_columns, error_msg = load_all_assets()
 
-# --- 3. INTERFACE ---
-st.title("🛡️ Analyseur de Risques Criminels - LA")
+# --- 4. INTERFACE UTILISATEUR ---
+st.title("🛡️ Analyseur de Risques Criminels - Los Angeles")
+st.markdown("Analyse prédictive basée sur un réseau de neurones (MLP).")
 
 if error_msg:
-    st.error(f"Erreur : {error_msg}")
+    st.error(f"❌ Erreur de chargement : {error_msg}")
+    st.info("Vérifiez la présence de mon_modele_mlp.h5, scaler.pkl et model_columns.pkl sur GitHub.")
     st.stop()
 
-# Extraction propre des quartiers depuis model_columns
+# Extraction des noms de quartiers (sans le préfixe AREA NAME_)
 prefix = 'AREA NAME_'
 quartiers = sorted([c.replace(prefix, '') for c in model_columns if c.startswith(prefix)])
 
-with st.form("main_form"):
+with st.form("prediction_form"):
     col1, col2 = st.columns(2)
-    area = col1.selectbox("Quartier", options=quartiers)
-    age = col1.slider("Âge de la victime", 1, 100, 30)
-    hour = col2.number_input("Heure (ex: 2230)", 0, 2359, 1200)
-    submit = st.form_submit_button("Lancer la prédiction")
+    with col1:
+        area_choice = st.selectbox("Quartier de l'incident", options=quartiers)
+        age_input = st.slider("Âge de la victime", 1, 100, 30)
+    with col2:
+        hour_input = st.number_input("Heure (Format HHMM, ex: 2230)", 0, 2359, 1200)
+    
+    submit_btn = st.form_submit_button("Lancer la prédiction")
 
-# --- 4. LOGIQUE DE PRÉDICTION (CORRECTION DU "FEATURE NAMES") ---
-if submit:
+# --- 5. LOGIQUE DE PRÉDICTION (LA CORRECTION) ---
+if submit_btn:
     try:
-        # ÉTAPE CRUCIALE : On crée un dictionnaire avec TOUTES les colonnes à 0
-        # Cela garantit que le Scaler recevra exactement ce qu'il a vu au fit()
-        data_dict = {col: [0.0] for col in model_columns}
-        input_df = pd.DataFrame(data_dict)
+        # A. Reconstruction du DataFrame avec TOUTES les colonnes originales à 0
+        input_df = pd.DataFrame(0.0, index=[0], columns=model_columns)
         
-        # Remplissage des valeurs saisies
-        if 'Vict Age' in input_df.columns:
-            input_df['Vict Age'] = float(age)
-        if 'TIME OCC' in input_df.columns:
-            input_df['TIME OCC'] = float(hour)
+        # B. Remplissage des variables numériques
+        if 'Vict Age' in model_columns:
+            input_df['Vict Age'] = float(age_input)
+        if 'TIME OCC' in model_columns:
+            input_df['TIME OCC'] = float(hour_input)
         
-        # Activation du quartier choisi (One-Hot Encoding manuel)
-        target_col = f"{prefix}{area}"
-        if target_col in input_df.columns:
+        # C. Activation du quartier (One-Hot Encoding)
+        target_col = f"{prefix}{area_choice}"
+        if target_col in model_columns:
             input_df[target_col] = 1.0
         
-        # RÉALIGNEMENT : On force l'ordre des colonnes pour le Scaler
-        input_df = input_df[model_columns]
-
-        # Transformation et Prédiction
-        X_scaled = scaler.transform(input_df)
+        # D. TRANSFORMATION (L'astuce .values pour éviter l'erreur de noms)
+        # On passe une matrice NumPy brute au scaler
+        X_scaled = scaler.transform(input_df.values) 
+        
+        # E. PRÉDICTION
         prediction = model.predict(X_scaled)
         
-        # --- 5. AFFICHAGE ---
+        # --- 6. AFFICHAGE DES RÉSULTATS ---
         st.divider()
-        p_id = float(prediction[0][0])
-        p_agress = float(prediction[0][1])
+        prob_id = float(prediction[0][0])
+        prob_agress = float(prediction[0][1])
 
-        c1, c2 = st.columns(2)
-        c1.metric("🆔 Vol d'Identité", f"{p_id*100:.1f}%")
-        c2.metric("👊 Agression Simple", f"{p_agress*100:.1f}%")
+        res_col1, res_col2 = st.columns(2)
+        res_col1.metric("🆔 Vol d'Identité", f"{prob_id*100:.1f}%")
+        res_col2.metric("👊 Agression Simple", f"{prob_agress*100:.1f}%")
 
-        # Petit graphique de comparaison
-        st.bar_chart(pd.DataFrame({
-            "Probabilité (%)": [p_id*100, p_agress*100]
-        }, index=["Vol Identité", "Agression"]))
-
-    except Exception as e:
-        st.error(f"Erreur lors du calcul : {e}")
+        # Graphique de comparaison
+        chart_data = pd.DataFrame({
+            "Probabilité (%)": [prob_id*100, prob_
