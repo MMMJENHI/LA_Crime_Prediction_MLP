@@ -178,6 +178,14 @@ with st.sidebar:
     except Exception as e:
         st.error("Erreur QR Code : Vérifiez qrcode et pillow dans requirements.txt")
 
+# --- DANS TON FICHIER app.py ---
+with st.sidebar:
+    # METS TA NOUVELLE ADRESSE COURTE ICI
+    url_app = "https://la-crime-ia.streamlit.app" 
+    
+    qr = qrcode.make(url_app)
+    # ... (reste du code pour afficher le QR)
+
 st.sidebar.divider()
 
 st.caption("Projet IA Los Angeles - Déploiement Streamlit Cloud / GitHub")
