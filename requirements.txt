@@ -1,8 +1,21 @@
 %%writefile requirements.txt
-pandas
-numpy
-tensorflow
-scikit-learn
+# ── Core UI & ML (Indispensable pour ton MLP) ───────────
+streamlit>=1.35.0
+tensorflow-cpu==2.15.0
 joblib
-streamlit
-ipywidgets
+scikit-learn>=1.4.0
+
+# ── Data Science ─────────────────────────────────────────
+pandas>=2.0.0
+numpy>=1.26.0
+scipy>=1.12.0
+
+# ── Visualization & Cartographie ────────────────────────
+plotly>=5.18.0
+folium>=0.16.0
+streamlit-folium>=0.20.0
+
+# ── Autres (APIs, Excel, Telegram) ──────────────────────
+requests>=2.31.0
+openpyxl>=3.1.0
+python-telegram-bot>=20.0
