@@ -1,98 +1,58 @@
-import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import os
+import tensorflow as tf
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report
 
-# --- 1. CONFIGURATION ---
-st.set_page_config(page_title="LA Crime Predictor", page_icon="🛡️")
+# --- 1. CHARGEMENT ---
+df = pd.read_csv('/content/drive/MyDrive/Analyzing-Crime-in-Los-Angeles-main/crimes.csv')
+df = df[df['Vict Age'] > 0]
 
-# Importation sécurisée de TensorFlow
-try:
-    import tensorflow as tf
-    TF_AVAILABLE = True
-except ImportError:
-    TF_AVAILABLE = False
+# --- 2. RÉÉQUILIBRAGE ---
+df_id = df[df['Crm Cd Desc'] == 'THEFT OF IDENTITY']
+df_agression = df[df['Crm Cd Desc'] == 'BATTERY - SIMPLE ASSAULT']
+df_calme = df[(df['Crm Cd Desc'] != 'THEFT OF IDENTITY') &
+              (df['Crm Cd Desc'] != 'BATTERY - SIMPLE ASSAULT')].sample(len(df_id), random_state=42)
 
-# --- 2. CHARGEMENT DES ASSETS (Modèle, Scaler et Liste des 22 colonnes) ---
-@st.cache_resource
-def load_all_assets():
-    if not TF_AVAILABLE:
-        return None, None, None, "TensorFlow n'est pas installé."
-    try:
-        # Charger le modèle MLP (compile=False pour éviter les conflits de version)
-        model = tf.keras.models.load_model('mon_modele_mlp.h5', compile=False)
-        # Charger le Scaler (celui qui attend 22 colonnes)
-        scaler = joblib.load('scaler.pkl')
-        # Charger la liste EXACTE des 22 noms de colonnes utilisés sur Colab
-        model_cols = joblib.load('model_columns.pkl')
-        return model, scaler, model_cols, None
-    except Exception as e:
-        return None, None, None, str(e)
+df_balanced = pd.concat([df_id, df_agression, df_calme]).sample(frac=1, random_state=42)
 
-model, scaler, model_columns, error_msg = load_all_assets()
+# --- 3. PRÉPARATION DE X (ENTRÉES) ---
+X_raw = df_balanced[['AREA NAME', 'Vict Age', 'TIME OCC']]
+# On garde drop_first=False pour la compatibilité Streamlit
+X_encoded = pd.get_dummies(X_raw, columns=['AREA NAME'], drop_first=False)
+model_columns = list(X_encoded.columns)
+joblib.dump(model_columns, 'model_columns.pkl')
 
-# --- 3. INTERFACE UTILISATEUR ---
-st.title("🛡️ Analyseur de Risques Criminels - LA")
+# --- 4. PRÉPARATION DE Y (SORTIES) ---
+# DOIT ÊTRE FAIT AVANT LE SPLIT
+y1 = (df_balanced['Crm Cd Desc'] == 'THEFT OF IDENTITY').astype(int)
+y2 = (df_balanced['Crm Cd Desc'] == 'BATTERY - SIMPLE ASSAULT').astype(int)
+Y = np.column_stack((y1, y2))
 
-if error_msg:
-    st.error(f"❌ Erreur de chargement : {error_msg}")
-    st.stop()
+# --- 5. NORMALISATION ET SPLIT ---
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X_encoded)
+joblib.dump(scaler, 'scaler.pkl')
 
-# On prépare la liste des quartiers pour le menu (en enlevant 'AREA NAME_')
-prefix = 'AREA NAME_'
-quartiers = sorted([c.replace(prefix, '') for c in model_columns if c.startswith(prefix)])
+# Maintenant Y existe, on peut split
+X_train, X_test, Y_train, Y_test = train_test_split(X_scaled, Y, test_size=0.2, stratify=Y, random_state=42)
 
-with st.form("main_form"):
-    col1, col2 = st.columns(2)
-    with col1:
-        area_choice = st.selectbox("Sélectionnez le Quartier", options=quartiers)
-        age_input = st.slider("Âge de la victime", 1, 100, 30)
-    with col2:
-        hour_input = st.number_input("Heure de l'incident (Format HHMM, ex: 1430)", 0, 2359, 1200)
-    
-    submit_btn = st.form_submit_button("Lancer l'analyse")
+# --- 6. ARCHITECTURE MLP ---
+model = tf.keras.Sequential([
+    tf.keras.layers.Dense(128, activation='relu', input_shape=(len(model_columns),)),
+    tf.keras.layers.Dropout(0.2),
+    tf.keras.layers.Dense(64, activation='relu'),
+    tf.keras.layers.Dense(2, activation='sigmoid')
+])
 
-# --- 4. LOGIQUE DE PRÉDICTION (LA RÉPARATION DES 22 COLONNES) ---
-if submit_btn:
-    try:
-        # ÉTAPE CRUCIALE : Création d'un DataFrame de ZÉROS avec les 22 colonnes exactes
-        # Cela garantit que le Scaler recevra 22 features et non 5.
-        input_df = pd.DataFrame(0.0, index=[0], columns=model_columns)
-        
-        # Remplissage des variables numériques (Age et Heure)
-        if 'Vict Age' in model_columns:
-            input_df['Vict Age'] = float(age_input)
-        if 'TIME OCC' in model_columns:
-            input_df['TIME OCC'] = float(hour_input)
-        
-        # Activation du quartier choisi (One-Hot Encoding manuel)
-        target_col = f"{prefix}{area_choice}"
-        if target_col in model_columns:
-            input_df[target_col] = 1.0
-        
-        # TRANSFORMATION : On envoie les 22 colonnes au scaler
-        # .values transforme le DataFrame en matrice NumPy pour ignorer les noms de colonnes
-        X_scaled = scaler.transform(input_df.values)
-        
-        # PRÉDICTION AVEC LE MODÈLE MLP
-        prediction = model.predict(X_scaled)
-        
-        # --- 5. AFFICHAGE DES RÉSULTATS ---
-        st.divider()
-        prob_id = float(prediction[0][0]) * 100
-        prob_agress = float(prediction[0][1]) * 100
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+model.fit(X_train, Y_train, epochs=25, batch_size=32, validation_split=0.1)
 
-        res1, res2 = st.columns(2)
-        res1.metric("🆔 Risque Vol d'Identité", f"{prob_id:.1f}%")
-        res2.metric("👊 Risque Agression Simple", f"{prob_agress:.1f}%")
-        
-        # Graphique visuel
-        st.bar_chart(pd.DataFrame({
-            "Probabilité (%)": [prob_id, prob_agress]
-        }, index=["Vol Identité", "Agression"]))
+model.save('mon_modele_mlp.h5')
 
-    except Exception as e:
-        st.error(f"Erreur lors du calcul : {e}")
-
-st.caption("Modèle MLP v1.0 - Données Los Angeles - Déploiement Streamlit Cloud")
+# --- 7. VÉRIFICATION ---
+y_pred = (model.predict(X_test) > 0.5).astype(int)
+print("\n🔥 RAPPORT FINAL - VOL D'IDENTITÉ :\n", classification_report(Y_test[:, 0], y_pred[:, 0]))
+print("\n🔥 RAPPORT FINAL - AGRESSION :\n", classification_report(Y_test[:, 1], y_pred[:, 1]))
