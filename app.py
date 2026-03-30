@@ -149,4 +149,35 @@ data_quartiers = {
 }
 st.dataframe(pd.DataFrame(data_quartiers), use_container_width=True)
 
+import qrcode
+from io import BytesIO
+
+# --- GÉNÉRATION DU QR CODE DANS LA BARRE LATÉRALE ---
+with st.sidebar:
+    st.image("https://img.icons8.com/fluency/48/000000/qr-code.png", width=30) # Petite icône déco
+    st.subheader("Partager l'App")
+    
+    url_app = "https://la-crime-prediction-mlp.streamlit.app/" 
+    
+    try:
+        # Création du QR Code
+        qr = qrcode.QRCode(version=1, box_size=10, border=4)
+        qr.add_data(url_app)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Préparation de l'image pour Streamlit
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        
+        # Affichage en haut à gauche
+        st.image(buf, caption="Scannez pour mobile", width=150)
+        st.info(f"[Lien direct]({url_app})")
+        
+    except Exception as e:
+        st.error("Erreur QR Code : Vérifiez qrcode et pillow dans requirements.txt")
+
+st.sidebar.divider()
+
 st.caption("Projet IA Los Angeles - Déploiement Streamlit Cloud / GitHub")
