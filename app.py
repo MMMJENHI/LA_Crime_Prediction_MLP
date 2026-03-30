@@ -103,4 +103,3 @@ if submit_btn:
         st.error(f"Une erreur est survenue lors de la prédiction : {e}")
 
 st.caption("Données basées sur les archives LAPD - Modèle Neural Network (MLP)")
-
