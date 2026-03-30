@@ -4,70 +4,54 @@ import numpy as np
 import tensorflow as tf
 import joblib
 
-# Configuration
-st.set_page_config(page_title="LA Risk Detector", page_icon="🕵️")
+# Configuration de la page
+st.set_page_config(page_title="Crime Detector LA", layout="centered")
 
 @st.cache_resource
-def load_assets():
+def load_all_models():
+    """Charge les fichiers sans passer par le CSV"""
     try:
-
-        model = tf.keras.models.load_model('mon_modele_mlp.h5', compile=False)
-        scaler = joblib.load('scaler.pkl')
-        cols = joblib.load('model_columns.pkl')
-        return model, scaler, cols
+        m = tf.keras.models.load_model('mon_modele_mlp.h5')
+        s = joblib.load('scaler.pkl')
+        c = joblib.load('model_columns.pkl')
+        return m, s, c
     except Exception as e:
-        return None, None, str(e)
+        st.error(f"Erreur de fichiers : {e}")
+        return None, None, None
 
-model, scaler, model_columns = load_assets()
-
-# --- INTERFACE ---
-st.title("🛡️ Analyseur de Risques Criminels - LA")
-st.markdown("Estimation basée sur l'IA (Modèle MLP Multi-label)")
+model, scaler, model_columns = load_all_models()
 
 if model is not None:
-    # On extrait les quartiers du fichier .pkl
-    quartiers = sorted([c.replace('AREA NAME_', '') for c in model_columns if 'AREA NAME_' in c])
+    st.title("🛡️ Analyseur de Risques - Los Angeles")
 
-    with st.sidebar:
-        st.header("Paramètres")
-        area = st.selectbox("Quartier", options=quartiers)
-        age = st.slider("Âge de la victime", 1, 100, 30)
-        hour = st.number_input("Heure (0000 à 2359)", 0, 2359, 1200)
-        predict_btn = st.button("Calculer les risques")
+    # On récupère les quartiers depuis model_columns (Pas besoin du CSV !)
+    quartiers = sorted([name.replace('AREA NAME_', '') for name in model_columns if 'AREA NAME_' in name])
 
-    if predict_btn:
-        # 1. Création DataFrame
-        input_df = pd.DataFrame([[area, age, hour]], columns=['AREA NAME', 'Vict Age', 'TIME OCC'])
+    with st.form("main_form"):
+        area = st.selectbox("Quartier", quartiers)
+        age = st.slider("Age de la personne", 1, 100, 25)
+        hour = st.number_input("Heure (0-2359)", 0, 2359, 1200)
+        submit = st.form_submit_button("Lancer la prédiction")
 
-        # 2. Encodage (doit correspondre au drop_first=True de ton entraînement)
-        input_encoded = pd.get_dummies(input_df, columns=['AREA NAME'])
+    if submit:
+        # 1. Création du DataFrame
+        input_data = pd.DataFrame([[area, age, hour]], columns=['AREA NAME', 'Vict Age', 'TIME OCC'])
 
-        # 3. Alignement sur les colonnes d'entraînement
+        # 2. Encodage
+        input_encoded = pd.get_dummies(input_data, columns=['AREA NAME'])
+
+        # 3. Alignement (Reconstruction du vecteur X)
         final_df = pd.DataFrame(columns=model_columns).fillna(0)
         final_df = pd.concat([final_df, input_encoded]).fillna(0)
         final_df = final_df[model_columns]
 
         # 4. Prédiction
-        X_scaled = scaler.transform(final_df)
-        res = model.predict(X_scaled)
+        pred = model.predict(scaler.transform(final_df))
 
-
-
-    ###
-
-
-    # --- REMPLACE LA PARTIE AFFICHAGE PAR CELLE-CI ---
-        st.subheader(f"Résultats pour {area}")
-
-        prob_id = res[0][0] * 100
-        prob_agression = res[0][1] * 100
-
-        # Affichage en texte simple au cas où le JS plante
-        st.write(f"### 🆔 Vol d'Identité : {prob_id:.1f}%")
-        st.write(f"### 👊 Agression Simple : {prob_agression:.1f}%")
-
-        # Un simple tableau de données (plus léger que des graphiques)
-        st.table(pd.DataFrame({
-            "Type de Crime": ["Vol d'Identité", "Agression"],
-            "Probabilité (%)": [f"{prob_id:.1f}%", f"{prob_id:.1f}%"]
-        }))
+        # 5. Affichage
+        st.divider()
+        col1, col2 = st.columns(2)
+        col1.metric("🆔 Risque Vol Identité", f"{pred[0][0]*100:.1f}%")
+        col2.metric("👊 Risque Agression", f"{pred[0][1]*100:.1f}%")
+else:
+    st.warning("⚠️ Les fichiers .h5 ou .pkl sont manquants dans le dossier Colab.")
