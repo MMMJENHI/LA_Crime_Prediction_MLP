@@ -5,3 +5,4 @@ tensorflow
 joblib
 scikit-learn
 pickle5
+keras
