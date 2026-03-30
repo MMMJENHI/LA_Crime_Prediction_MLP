@@ -10,7 +10,8 @@ st.set_page_config(page_title="LA Risk Detector", page_icon="🕵️")
 @st.cache_resource
 def load_assets():
     try:
-        model = tf.keras.models.load_model('mon_modele_mlp.h5')
+
+        model = tf.keras.models.load_model('mon_modele_mlp.h5', compile=False)
         scaler = joblib.load('scaler.pkl')
         cols = joblib.load('model_columns.pkl')
         return model, scaler, cols
@@ -37,10 +38,10 @@ if model is not None:
     if predict_btn:
         # 1. Création DataFrame
         input_df = pd.DataFrame([[area, age, hour]], columns=['AREA NAME', 'Vict Age', 'TIME OCC'])
-        
+
         # 2. Encodage (doit correspondre au drop_first=True de ton entraînement)
         input_encoded = pd.get_dummies(input_df, columns=['AREA NAME'])
-        
+
         # 3. Alignement sur les colonnes d'entraînement
         final_df = pd.DataFrame(columns=model_columns).fillna(0)
         final_df = pd.concat([final_df, input_encoded]).fillna(0)
@@ -49,19 +50,24 @@ if model is not None:
         # 4. Prédiction
         X_scaled = scaler.transform(final_df)
         res = model.predict(X_scaled)
-        
-        # 5. Affichage
+
+
+
+    ###
+
+
+    # --- REMPLACE LA PARTIE AFFICHAGE PAR CELLE-CI ---
         st.subheader(f"Résultats pour {area}")
-        c1, c2 = st.columns(2)
-        
-        # res[0][0] = ID Theft | res[0][1] = Agression
-        c1.metric("🆔 Vol d'Identité", f"{res[0][0]*100:.1f}%")
-        c2.metric("👊 Agression Simple", f"{res[0][1]*100:.1f}%")
-        
-        # Graphique de probabilité
-        st.bar_chart(pd.DataFrame({
-            "Crime": ["Vol Identité", "Agression"],
-            "Probabilité (%)": [res[0][0]*100, res[0][1]*100]
-        }).set_index("Crime"))
-else:
-    st.error(f"Erreur de fichiers : {model_columns}")
+
+        prob_id = res[0][0] * 100
+        prob_agression = res[0][1] * 100
+
+        # Affichage en texte simple au cas où le JS plante
+        st.write(f"### 🆔 Vol d'Identité : {prob_id:.1f}%")
+        st.write(f"### 👊 Agression Simple : {prob_agression:.1f}%")
+
+        # Un simple tableau de données (plus léger que des graphiques)
+        st.table(pd.DataFrame({
+            "Type de Crime": ["Vol d'Identité", "Agression"],
+            "Probabilité (%)": [f"{prob_id:.1f}%", f"{prob_id:.1f}%"]
+        }))
