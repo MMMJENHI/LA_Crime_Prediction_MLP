@@ -4,113 +4,89 @@ import numpy as np
 import joblib
 import os
 
-# --- 1. CONFIGURATION DE LA PAGE ---
-st.set_page_config(
-    page_title="LA Crime Predictor",
-    page_icon="🛡️",
-    layout="centered"
-)
+# --- 1. CONFIGURATION ---
+st.set_page_config(page_title="LA Crime Predictor", page_icon="🛡️")
 
-# --- 2. GESTION DE L'IMPORT TENSORFLOW ---
-# On essaie d'importer TensorFlow de manière sécurisée
+# Importation sécurisée de TensorFlow
 try:
     import tensorflow as tf
     TF_AVAILABLE = True
 except ImportError:
     TF_AVAILABLE = False
 
-# --- 3. CHARGEMENT DU MODÈLE ET DES ASSETS ---
+# --- 2. CHARGEMENT DES FICHIERS ---
 @st.cache_resource
 def load_all_assets():
-    """Charge le modèle MLP, le Scaler et la liste des colonnes"""
     if not TF_AVAILABLE:
-        return None, None, None, "Erreur : TensorFlow n'est pas installé dans l'environnement."
-    
+        return None, None, None, "TensorFlow n'est pas installé."
     try:
-        # Ligne CRUCIALE : Chargement sans compilation pour la compatibilité Cloud
+        # LE SECRET : compile=False pour éviter les conflits de versions
         model = tf.keras.models.load_model('mon_modele_mlp.h5', compile=False)
-        
-        # Chargement des outils de preprocessing sauvegardés sur Colab
         scaler = joblib.load('scaler.pkl')
         model_columns = joblib.load('model_columns.pkl')
-        
         return model, scaler, model_columns, None
     except Exception as e:
         return None, None, None, str(e)
 
-# Exécution du chargement au démarrage
 model, scaler, model_columns, error_msg = load_all_assets()
 
-# --- 4. INTERFACE UTILISATEUR ---
-st.title("🛡️ Analyseur de Risques Criminels")
-st.subheader("Étude prédictive - Los Angeles (MLP Model)")
+# --- 3. INTERFACE ---
+st.title("🛡️ Analyseur de Risques Criminels - LA")
 
 if error_msg:
-    st.error(f"❌ Impossible de charger les fichiers : {error_msg}")
-    st.info("Vérifiez que mon_modele_mlp.h5, scaler.pkl et model_columns.pkl sont à la racine de votre GitHub.")
+    st.error(f"Erreur : {error_msg}")
     st.stop()
 
-# Extraction propre de la liste des quartiers à partir des colonnes One-Hot
+# Extraction propre des quartiers depuis model_columns
 prefix = 'AREA NAME_'
 quartiers = sorted([c.replace(prefix, '') for c in model_columns if c.startswith(prefix)])
 
-# Formulaire de saisie
-with st.form("prediction_form"):
-    col_input1, col_input2 = st.columns(2)
-    
-    with col_input1:
-        area_choice = st.selectbox("Sélectionnez le Quartier", options=quartiers)
-        age_input = st.slider("Âge de la victime", 1, 100, 30)
-    
-    with col_input2:
-        hour_input = st.number_input("Heure de l'incident (0-2359)", 0, 2359, 1200)
-    
-    submit_btn = st.form_submit_button("Lancer l'analyse")
+with st.form("main_form"):
+    col1, col2 = st.columns(2)
+    area = col1.selectbox("Quartier", options=quartiers)
+    age = col1.slider("Âge de la victime", 1, 100, 30)
+    hour = col2.number_input("Heure (ex: 2230)", 0, 2359, 1200)
+    submit = st.form_submit_button("Lancer la prédiction")
 
-# --- 5. LOGIQUE DE PRÉDICTION ---
-if submit_btn:
+# --- 4. LOGIQUE DE PRÉDICTION (CORRECTION DU "FEATURE NAMES") ---
+if submit:
     try:
-        # Création d'un DataFrame vide avec TOUTES les colonnes attendues par le modèle
-        input_df = pd.DataFrame(0, index=[0], columns=model_columns)
+        # ÉTAPE CRUCIALE : On crée un dictionnaire avec TOUTES les colonnes à 0
+        # Cela garantit que le Scaler recevra exactement ce qu'il a vu au fit()
+        data_dict = {col: [0.0] for col in model_columns}
+        input_df = pd.DataFrame(data_dict)
         
-        # Remplissage des variables numériques
-        if 'Vict Age' in model_columns:
-            input_df['Vict Age'] = age_input
-        if 'TIME OCC' in model_columns:
-            input_df['TIME OCC'] = hour_input
+        # Remplissage des valeurs saisies
+        if 'Vict Age' in input_df.columns:
+            input_df['Vict Age'] = float(age)
+        if 'TIME OCC' in input_df.columns:
+            input_df['TIME OCC'] = float(hour)
         
-        # Activation du quartier (One-Hot Encoding manuel)
-        target_col = f"{prefix}{area_choice}"
-        if target_col in model_columns:
-            input_df[target_col] = 1
+        # Activation du quartier choisi (One-Hot Encoding manuel)
+        target_col = f"{prefix}{area}"
+        if target_col in input_df.columns:
+            input_df[target_col] = 1.0
         
-        # Transformation par le Scaler
+        # RÉALIGNEMENT : On force l'ordre des colonnes pour le Scaler
+        input_df = input_df[model_columns]
+
+        # Transformation et Prédiction
         X_scaled = scaler.transform(input_df)
-        
-        # Prédiction avec le modèle Keras
         prediction = model.predict(X_scaled)
         
-        # --- 6. AFFICHAGE DES RÉSULTATS ---
+        # --- 5. AFFICHAGE ---
         st.divider()
-        st.success(f"Résultats pour le quartier : **{area_choice}**")
-        
-        prob_vol = float(prediction[0][0])
-        prob_agress = float(prediction[0][1])
+        p_id = float(prediction[0][0])
+        p_agress = float(prediction[0][1])
 
-        res_col1, res_col2 = st.columns(2)
-        res_col1.metric("🆔 Risque Vol d'Identité", f"{prob_vol*100:.1f}%")
-        res_col2.metric("👊 Risque Agression Simple", f"{prob_agress*100:.1f}%")
-        
-        # Graphique visuel
-        chart_data = pd.DataFrame({
-            "Type de Crime": ["Vol d'Identité", "Agression"],
-            "Probabilité (%)": [prob_vol*100, prob_agress*100]
-        }).set_index("Type de Crime")
-        
-        st.bar_chart(chart_data)
+        c1, c2 = st.columns(2)
+        c1.metric("🆔 Vol d'Identité", f"{p_id*100:.1f}%")
+        c2.metric("👊 Agression Simple", f"{p_agress*100:.1f}%")
+
+        # Petit graphique de comparaison
+        st.bar_chart(pd.DataFrame({
+            "Probabilité (%)": [p_id*100, p_agress*100]
+        }, index=["Vol Identité", "Agression"]))
 
     except Exception as e:
-        st.error(f"Une erreur est survenue lors de la prédiction : {e}")
-
-# --- PIED DE PAGE ---
-st.caption("Projet IA - Analyse de données Los Angeles - Déploiement Streamlit Cloud")
+        st.error(f"Erreur lors du calcul : {e}")
