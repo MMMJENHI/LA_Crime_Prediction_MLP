@@ -3,55 +3,94 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 import joblib
+import os
+
+# --- CORRECTIF DE COMPATIBILITÉ KERAS ---
+# Force l'ancien moteur pour éviter l'erreur 'batch_shape' sur Streamlit Cloud
+os.environ['TF_USE_LEGACY_KERAS'] = '1'
 
 # Configuration de la page
-st.set_page_config(page_title="Crime Detector LA", layout="centered")
+st.set_page_config(page_title="LA Risk Detector", page_icon="🕵️")
 
 @st.cache_resource
-def load_all_models():
-    """Charge les fichiers sans passer par le CSV"""
+def load_assets():
     try:
-        m = tf.keras.models.load_model('mon_modele_mlp.h5')
-        s = joblib.load('scaler.pkl')
-        c = joblib.load('model_columns.pkl')
-        return m, s, c
+        # Chargement sans compilation pour ignorer les erreurs de config d'entraînement
+        model = tf.keras.models.load_model('mon_modele_mlp.h5', compile=False)
+        scaler = joblib.load('scaler.pkl')
+        cols = joblib.load('model_columns.pkl')
+        return model, scaler, cols
     except Exception as e:
-        st.error(f"Erreur de fichiers : {e}")
-        return None, None, None
+        return None, None, str(e)
 
-model, scaler, model_columns = load_all_models()
+model, scaler, model_columns = load_assets()
+
+# --- INTERFACE ---
+st.title("🛡️ Analyseur de Risques Criminels - LA")
+st.markdown("Estimation basée sur l'IA (Modèle MLP Multi-label)")
 
 if model is not None:
-    st.title("🛡️ Analyseur de Risques - Los Angeles")
+    # On extrait les noms des quartiers à partir de la liste des colonnes du modèle
+    prefix = 'AREA NAME_'
+    quartiers = sorted([c.replace(prefix, '') for c in model_columns if c.startswith(prefix)])
 
-    # On récupère les quartiers depuis model_columns (Pas besoin du CSV !)
-    quartiers = sorted([name.replace('AREA NAME_', '') for name in model_columns if 'AREA NAME_' in name])
+    with st.sidebar:
+        st.header("Paramètres")
+        area = st.selectbox("Quartier", options=quartiers)
+        age = st.slider("Âge de la victime", 1, 100, 30)
+        hour = st.number_input("Heure (Format HHMM, ex: 1430)", 0, 2359, 1200)
+        predict_btn = st.button("Calculer les risques")
 
-    with st.form("main_form"):
-        area = st.selectbox("Quartier", quartiers)
-        age = st.slider("Age de la personne", 1, 100, 25)
-        hour = st.number_input("Heure (0-2359)", 0, 2359, 1200)
-        submit = st.form_submit_button("Lancer la prédiction")
-
-    if submit:
-        # 1. Création du DataFrame
-        input_data = pd.DataFrame([[area, age, hour]], columns=['AREA NAME', 'Vict Age', 'TIME OCC'])
-
-        # 2. Encodage
-        input_encoded = pd.get_dummies(input_data, columns=['AREA NAME'])
-
-        # 3. Alignement (Reconstruction du vecteur X)
-        final_df = pd.DataFrame(columns=model_columns).fillna(0)
-        final_df = pd.concat([final_df, input_encoded]).fillna(0)
+    if predict_btn:
+        # --- ÉTAPE CRUCIALE : RECONSTRUCTION DU DATAFRAME ---
+        
+        # 1. On crée un DataFrame vide (une ligne de zéros) 
+        # avec TOUTES les colonnes que le Scaler a vues lors de l'entraînement.
+        final_df = pd.DataFrame(0, index=[0], columns=model_columns)
+        
+        # 2. On remplit les variables numériques (vérifie l'orthographe exacte dans ton entraînement)
+        if 'Vict Age' in model_columns:
+            final_df['Vict Age'] = age
+        if 'TIME OCC' in model_columns:
+            final_df['TIME OCC'] = hour
+        
+        # 3. Activation du quartier (One-Hot Encoding Manuel)
+        # On allume la colonne du quartier sélectionné
+        target_col = f'AREA NAME_{area}'
+        if target_col in model_columns:
+            final_df[target_col] = 1
+        
+        # 4. On force l'ORDRE des colonnes pour qu'il soit identique à 100% au Scaler
         final_df = final_df[model_columns]
 
-        # 4. Prédiction
-        pred = model.predict(scaler.transform(final_df))
+        try:
+            # 5. Transformation et Prédiction
+            X_scaled = scaler.transform(final_df)
+            res = model.predict(X_scaled)
+            
+            # 6. Affichage des résultats
+            st.subheader(f"Résultats pour {area}")
+            c1, c2 = st.columns(2)
+            
+            # Conversion en flottant pour l'affichage (res[0][0] = ID Theft, res[0][1] = Agression)
+            prob_id = float(res[0][0])
+            prob_agress = float(res[0][1])
 
-        # 5. Affichage
-        st.divider()
-        col1, col2 = st.columns(2)
-        col1.metric("🆔 Risque Vol Identité", f"{pred[0][0]*100:.1f}%")
-        col2.metric("👊 Risque Agression", f"{pred[0][1]*100:.1f}%")
+            c1.metric("🆔 Vol d'Identité", f"{prob_id*100:.1f}%")
+            c2.metric("👊 Agression Simple", f"{prob_agress*100:.1f}%")
+            
+            # Graphique visuel
+            chart_data = pd.DataFrame({
+                "Type de Crime": ["Vol d'Identité", "Agression Simple"],
+                "Probabilité (%)": [prob_id * 100, prob_agress * 100]
+            }).set_index("Type de Crime")
+            
+            st.bar_chart(chart_data)
+
+        except Exception as e:
+            st.error(f"Erreur lors de la prédiction : {e}")
+            st.info("Le scaler n'a pas reconnu les colonnes. Vérifiez l'ordre dans model_columns.pkl.")
+
 else:
-    st.warning("⚠️ Les fichiers .h5 ou .pkl sont manquants dans le dossier Colab.")
+    st.error(f"❌ Erreur de fichiers : {model_columns}")
+    st.info("Assure-toi que mon_modele_mlp.h5, scaler.pkl et model_columns.pkl sont sur GitHub.")
