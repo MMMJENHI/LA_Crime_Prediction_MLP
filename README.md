@@ -18,7 +18,8 @@ Cliquez sur le bouton "Open in Streamlit" en haut de la page ou sur ce lien dire
 Scannez ce QR Code avec votre téléphone pour accéder instantanément à l'IA :
 
 <img src="qr_code_la_crime.png" width="200" alt="QR Code de l'application">
-
+### 📱 Sur Mobile (Scan me!)
+<img src="qr_code_la_crime.png" width="200" alt="QR Code de l'application">
 ---
 
 ## ✨ Fonctionnalités
