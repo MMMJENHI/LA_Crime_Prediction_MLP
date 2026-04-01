@@ -35,5 +35,11 @@ L'application suit un pipeline de données rigoureux :
 * `requirements.txt` : Liste des bibliothèques nécessaires.
 * `qr_code_la_crime.png` : Image pour l'accès mobile.
 
+* ---
+## 🌐 Ressources & Inspiration
+Si vous voulez voir d'autres exemples incroyables de ce qu'on peut faire avec **Streamlit**, explorez la galerie officielle :
+
+👉 **[Découvrir la Galerie Streamlit (Showcase)](https://streamlit.io/gallery)**
+
 ## 👷 Auteur
 **MMMJENHI** - Développement et Intégration IA
