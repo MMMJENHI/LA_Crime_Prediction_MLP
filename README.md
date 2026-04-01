@@ -10,15 +10,7 @@ Ce projet est un **Système Expert de Prédiction de la Criminalité**. Il perme
 ## 🚀 Accès Rapide
 Vous pouvez tester l'application de deux manières :
 
-### 💻 Sur Ordinateur
-Cliquez sur le bouton "Open in Streamlit" en haut de la page ou sur ce lien direct :  
-👉 **[Lancer l'Analyseur de Risques (Streamlit)](https://la-crime-prediction.streamlit.app/)**
 
-### 📱 Sur Mobile (Scan me!)
-Scannez ce QR Code avec votre téléphone pour accéder instantanément à l'IA :
-
-<img src="qr_code_la_crime.png" width="200" alt="QR Code de l'application">
-![Mon QR Code](qr_code_la_crime.png)
 ---
 
 ## ✨ Fonctionnalités
