@@ -20,7 +20,7 @@ with st.sidebar:
     qr.save(buf, format="PNG")
     buf.seek(0)
     st.image(buf, caption="Scanner pour mobile", width=160)
-    st.markdown(f"🔗 [Lien de l'app]({url_app})")
+    #st.markdown(f"🔗 [Lien de l'app]({url_app})")
     st.divider()
     st.info("Modèle : Réseau de Neurones MLP\nBase de données : Los Angeles Crimes")
 
